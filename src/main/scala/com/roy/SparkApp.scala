@@ -17,10 +17,13 @@ object SparkApp extends App {
     .master("local[*]")
     .appName("SparkApp")
     .config("spark.driver.host", "localhost")
+    .config("spark.sql.streaming.metricsEnabled", "true") //OPTION 3
+    .config("spark.metrics.conf.*.sink.console.class", "org.apache.spark.metrics.sink.ConsoleSink")
     .getOrCreate()
 
   spark.sparkContext.setLogLevel("ERROR")
 
+  //OPTION 1
   spark.streams.addListener(new StreamingQueryListener{
     override def onQueryStarted(event: StreamingQueryListener.QueryStartedEvent): Unit = {
       println(s">>> Start: ${event.id}")
@@ -35,6 +38,7 @@ object SparkApp extends App {
     }
   })
 
+  //OPTION 2
   spark.listenerManager.register(new QueryExecutionListener {
     override def onSuccess(funcName: String, qe: QueryExecution, durationNs: Long): Unit = {
       println(s"### On Success: ${qe.optimizedPlan.stats}")
@@ -49,7 +53,7 @@ object SparkApp extends App {
 
   val query = spark
     .readStream
-    .option("maxFilesPerTrigger", 1)
+    .option("maxFilesPerTrigger", 1) // to trickle in the data
     .schema(schema)
     .json("src/main/resources/input")
     .groupBy(col("dept"))
@@ -59,5 +63,5 @@ object SparkApp extends App {
     .format("console")
     .start()
 
-  query.awaitTermination()
+  query.awaitTermination() // will block here
 }
